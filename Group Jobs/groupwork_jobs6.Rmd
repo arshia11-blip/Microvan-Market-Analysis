@@ -1,0 +1,411 @@
+---
+title: "Advanced Marketing Modelling -- Jobs"
+author: "Arshia Gupta, Elias Ganal, Yaonan Lyu, Ziheng Qiu"
+date: "2025-01-22"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load packages
+```{r}
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(psych)
+library(data.table)
+library(dendextend)
+library(factoextra)
+library(ggsignif)
+library(plotrix) # For Std.Errors
+```
+
+
+
+```{r}
+# Read the csv file
+setwd("/Users/arshia/Group Jobs")
+microvan <- read.csv("microvan.csv", sep = ";")
+```
+
+## Data Preparation
+```{r}
+# Check duplicated values
+duplicates <- microvan[duplicated(microvan), ]
+sum(duplicated(microvan))
+#Check missing values 
+sum(is.na(microvan))
+```
+
+### Descriptive analysis
+```{r}
+psych::describe(microvan[-1], fast = TRUE)
+```
+
+### Distribution of dependant variable - Concept Liking
+```{r}
+ggplot(microvan, aes(x = mvliking)) +
+  geom_histogram(binwidth = 1, fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Concept Liking", x = "mvliking", y = "Frequency") +
+  theme_minimal()
+```
+
+### Standardize variables
+```{r}
+vars <- scale(microvan[,-1])
+
+psych::describe(vars, fast = T)
+```
+
+### Correlation Matrix of all variables
+```{r}
+corrplot( cor(vars), 
+         method = "number", 
+         type = "upper", 
+         order = "hclust", # reorder by the size of the correlation coefficients
+         tl.cex = 0.5, # font size of the variable labels
+         tl.col = "black", # color of the variable labels
+         tl.srt = 45, # rotation angle for the variable labels
+         number.cex = 0.25 # font size of the coefficients
+)
+```
+
+## Factor Analysis
+### Select variables(eliminate all demographic variables)
+```{r}
+FAvars <- microvan[,c("kidtrans",
+                      "miniboxy",
+                      "lthrbetr",	
+                      "secbiggr",
+                      "safeimpt",	
+                      "buyhghnd",
+                      "pricqual",
+                      "prmsound",
+                      "perfimpt",
+                      "tkvacatn",
+                      "noparkrm",
+                      "homlrgst",	
+                      "envrminr",
+                      "needbetw",
+                      "suvcmpct",
+                      "next2str",
+                      "carefmny",
+                      "shdcarpl",
+                      "imprtapp",
+                      "lk4whldr",
+                      "kidsbulk",
+                      "wntguzlr",
+                      "nordtrps",
+                      "stylclth",
+                      "strngwrn",
+                      "passnimp",
+                      "twoincom",
+                      "nohummer",
+                      "aftrschl",
+                      "accesfun")]
+
+cor = cor(FAvars)
+
+library(corrplot)
+corrplot(cor, 
+         method = "number", 
+         type = "upper", 
+         order = "hclust", # reorder by the size of the correlation coefficients
+         tl.cex = 0.5, # font size of the variable labels
+         tl.col = "black", # color of the variable labels
+         tl.srt = 45, # rotation angle for the variable labels
+         number.cex = 0.35 # font size of the coefficients
+)
+
+```
+
+```{r}
+# KMO and MSA(i)
+psych::KMO(cor) 
+```
+
+
+```{r}
+# Bartlett’s test for Sphericity
+psych::cortest.bartlett(cor,
+                 n = dim(microvan)[1]) # number of rows
+```
+
+### Find the eigenvalues
+```{r}
+EV = eigen(cor)$values
+EV
+```
+
+```{r}
+# The individual percentage of variance:
+EV/length(EV)
+```
+
+```{r}
+#scree plot
+scree(cor, pc = TRUE, factors = FALSE)
+```
+
+```{r}
+# Shares for the cumulative variance explained
+plot(cumsum(EV/length(EV)), 
+     type = "o", # type of plot: "o" for points and lines 'overplotted'
+     col = "darkblue",
+     pch = 16, # plot symbol: 16 = filled circle
+     cex = 1, # size of plot symbols
+     xlab = "Number of factors", # a title for the x axis
+     ylab = "Cumulative variance explained", # a title for the y axis
+     lwd = 2) # line width
+abline(v = 3, lwd = 1.5, col = "grey") # draw a vertical line at v = ...
+abline(h = 0.6, lwd = 1.5, col = "grey", lty = 2) # draw a horizontal line at h = ...
+
+```
+
+### Execute the PCA
+```{r}
+PCA <- principal(r = cor, 
+                 nfactors = 4, 
+                 rotate="varimax",
+                 scores = TRUE)
+print(PCA, 
+      digits = 3, # to round numbers to the third digit 
+      cut = 0.35, # to show only values > 0.35
+      sort = TRUE # to sort rows by loading size
+)
+```
+
+```{r}
+# Visualize the PCA
+fa.diagram(PCA, cex = 0.2, cut = 0.6)
+```
+
+```{r}
+# The matrix of loadings:
+library(data.table)
+L <- as.data.table(unclass(PCA$loadings), keep.rownames = T)
+
+plot(x = L$RC1, y = L$RC2, 
+     col ="darkblue",  
+     pch = 16,        # plot symbol: 16 = filled circle
+     cex = 1,         # size of plot symbols
+     xlab = "Factor 1",    # a title for the x axis
+     ylab = "Factor 2",    # a title for the y axis
+     xlim = c(-1.5,1.5),  # x axis values from -1 to 1
+     ylim = c(-1.5,1.5))  # y axis values from -1 to 1
+
+# add point labels
+text(L$RC1, L$RC2, 
+     labels = L$rn,
+     pos = 3, 
+     cex = 0.8, 
+     col = "darkred")
+
+# add vertical and horizontal lines
+abline(h = 0, lwd = 2, col = "grey") # draw a horizontal line at h = 0
+abline(v = 0, lwd = 2, col = "grey") # draw a vertical line at v = 0
+```
+
+```{r}
+PCA$r.scores
+```
+
+### Perceptual map
+```{r}
+# extract  scores of principal components
+PCA.scores = factor.scores(FAvars, unclass(PCA$loadings))$scores
+```
+
+```{r}
+#standardized value
+psych::describe(PCA.scores, fast = TRUE)
+```
+
+```{r}
+## Add factor scores to the initial dataset
+microvan.scores <- cbind(microvan, PCA.scores)
+
+plot(x = microvan.scores$RC1, 
+     y = microvan.scores$RC2,
+     xlab = "Factor 1", ylab = "Factor 2",
+     xlim = c(-3, 3), ylim = c(-3, 3), 
+     pch = 16, cex = 1, col = "blue")
+
+abline(h = 0, col = "grey")
+abline(v = 0, col = "grey")
+
+# add point labels
+text(x = microvan.scores$RC1, 
+     y = microvan.scores$RC2, 
+     labels = microvan.scores$state,
+     cex = 1, 
+     adj = 1.2, 
+     col = "black")
+```
+
+## Cluster Analysis
+
+```{r}
+data.dist<-dist(microvan.scores[,c("RC1", "RC2", "RC3", "RC4")],
+                method = "euclidean") # one set of variables selected
+as.matrix(data.dist)[1:5,1:5] # Visualize distances among the first 5 observations
+```
+
+
+### Number of clusters
+```{r}
+cluster.ward <- hclust(data.dist, method ="ward.D2")
+
+
+plot(as.dendrogram(cluster.ward), # select the cluster solution
+     ylab = "Distance",
+     main = "Dendrogram",          # specify the plot title
+     cex = 0.3)                    # specify the label size
+```
+
+```{r}
+n_clusters = 4
+plot(set(as.dendrogram(cluster.ward), # select the cluster solution
+         "branches_k_color",       # color the cluster branches for the number of clusters (k = 4)
+         k = n_clusters),                   # specify the number of clusters
+     ylab = "Distance",
+     main = "Dendrogram",          # specify the plot title
+     cex = 0.3)                    # specify the label size
+rect.hclust(cluster.ward, k = n_clusters, border = "darkred")  # draw red borders around the clusters
+
+```
+
+```{r}
+factoextra::fviz_nbclust(x = microvan.scores[,c("RC1", "RC2", "RC3", "RC4")], # data
+                         FUN = hcut, # hierarchical cluster
+                         method = "wss") 
+```
+
+```{r}
+cluster.ward.segment <- cutree(cluster.ward, k=n_clusters)
+```
+
+```{r}
+table(cluster.ward.segment) # cluster sizes
+```
+
+
+```{r}
+table(cluster.ward.segment)/nrow(microvan.scores) # proportions of the sample
+```
+
+### Description of clusters
+```{r}
+microvan$cluster <- cutree(cluster.ward, k=n_clusters) # to store the cluster solution in the initial data
+```
+
+```{r}
+# Average values of variables for each cluster
+aggregate(microvan[-1],
+          by = list(cluster = microvan$cluster), 
+          FUN = mean)
+```
+
+```{r}
+# Generate the summarized dataset first
+summarized_data <- microvan[-1] %>% 
+  group_by(cluster) %>% 
+  summarise_all(.funs = list(~mean(., na.rm = T))) %>% 
+  tidyr::gather(Variable, Mean, mvliking:recycle) %>% 
+  left_join(
+    microvan[-1] %>% 
+      group_by(cluster) %>% 
+      summarise_all(.funs = list(~std.error(., na.rm = T))) %>% 
+      tidyr::gather(Variable, SE, mvliking:recycle),
+    by = c("cluster", "Variable")
+  )
+
+# Define variable groups
+variable_groups <- list(
+  group1 = c("kidtrans", "miniboxy", "lthrbetr", "secbiggr", "safeimpt", "buyhghnd", "pricqual", "prmsound"),
+  group2 = c("perfimpt", "tkvacatn", "noparkrm", "homlrgst", "envrminr", "needbetw", "suvcmpct", "next2str"),
+  group3 = c("carefmny", "shdcarpl", "imprtapp", "lk4whldr", "kidsbulk", "wntguzlr", "nordtrps", "stylclth"),
+  group4 = c("strngwrn", "passnimp", "twoincom", "nohummer", "aftrschl", "accesfun", "mvliking"),
+  group5 = c("age", "income", "miles", "numkids", "female", "educ", "recycle")
+)
+
+# Function to filter data and create a plot
+create_plot <- function(data, variable_subset, title_suffix) {
+  data %>%
+    filter(Variable %in% variable_subset) %>%
+    ggplot(aes(y = Mean, x = cluster)) +
+    facet_wrap(~ Variable, scales = "free", ncol = 4) +
+    geom_bar(stat = "identity", fill = "#bac5db") +
+    geom_errorbar(aes(ymin = Mean - 1.96 * SE, ymax = Mean + 1.96 * SE),
+                  width = 0.2, position = position_dodge(0.9)) +
+    labs(x = "Cluster", y = "Mean + 95%-Confidence Interval") +
+    theme_minimal(base_size = 17) +
+    theme(axis.text.x = element_text(angle = 0)) +
+    ggtitle(label = paste("Descriptive Statistics for Clusters -", title_suffix))
+}
+
+# Create plots for each group
+plot1 <- create_plot(summarized_data, variable_groups$group1, "Group 1")
+plot2 <- create_plot(summarized_data, variable_groups$group2, "Group 2")
+plot3 <- create_plot(summarized_data, variable_groups$group3, "Group 3")
+plot4 <- create_plot(summarized_data, variable_groups$group4, "Group 4")
+plot5 <- create_plot(summarized_data, variable_groups$group5, "Group 5")
+
+# View the plots
+print(plot1)
+print(plot2)
+print(plot3)
+print(plot4)
+print(plot5)
+
+```
+
+## Regression
+### logistics regression
+```{r}
+# Determine the 75th percentile
+threshold <- quantile(microvan.scores$mvliking, 0.75, na.rm = TRUE)
+
+# Create the binary variable
+microvan.scores$mvliking_binary <- ifelse(microvan.scores$mvliking > threshold, 1, 0)
+
+# Check the distribution of the binary variable
+table(microvan.scores$mvliking_binary)
+```
+
+### Null model
+```{r}
+m0 <- glm(mvliking_binary ~1, data = microvan.scores, family = "binomial")
+summary(m0)
+```
+
+### Full model
+```{r}
+# Fit the logistic regression model
+  
+m1 <- glm(mvliking_binary ~ RC1 + RC2 + RC3 + RC4+age+income+miles+numkids+female+educ+recycle, 
+                      data = microvan.scores, family = "binomial")
+
+summary(m1)
+```
+
+### Final model
+```{r}
+  
+m2 <- glm(mvliking_binary ~  RC2 + RC4+age+miles+female+educ, 
+                      data = microvan.scores, family = "binomial")
+
+summary(m2)
+```
+
+```{r}
+round(exp(coef(m2)), 3)
+```
+```
+
+
+
